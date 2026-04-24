@@ -482,8 +482,6 @@ function rowToDish(row) {
   // ✅ Always resolve assets from local folder — sheet URLs ignored
   const local = getLocalAssets(row['name'] || name);
 
-  const FIXED_SCALE = 0.5;
-
   return {
     id:        row['id']       || '',
     name,
@@ -498,7 +496,7 @@ function rowToDish(row) {
     glbPath:   local.glbPath,
     usdzPath:  local.usdzPath,
     posterPath: local.posterPath,
-    scale:     FIXED_SCALE,
+    scale:     local.scale,
     emoji:     EMOJI_MAP[(row['name'] || '').toLowerCase()] || '🍽️',
   };
 }
