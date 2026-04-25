@@ -239,10 +239,55 @@
         const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
                       (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
+        // ── Preload ALL models silently on page load ───────────────────────────
+        const preloaded = {};
+
+        function preloadModel(l, i) {
+            const mv = document.createElement('model-viewer');
+            mv.id = `mv-ar-${i}`;
+
+            // ── Src ────────────────────────────────────────────────────────────
+            mv.setAttribute('src', `ExploreJapan/${l.folder}/${l.file}.glb`);
+            if (isIOS && l.hasUsdz) mv.setAttribute('ios-src', `ExploreJapan/${l.folder}/${l.file}.usdz`);
+
+            // ── AR core ────────────────────────────────────────────────────────
+            mv.setAttribute('ar', '');
+            mv.setAttribute('ar-modes', 'webxr scene-viewer quick-look');
+            mv.setAttribute('ar-placement', 'floor');
+            mv.setAttribute('ar-scale', 'auto');            // pinch to resize in AR
+            mv.setAttribute('camera-controls', '');         // full gesture support
+            mv.setAttribute('touch-action', 'none');        // model-viewer owns all touches
+            mv.setAttribute('interaction-prompt', 'none');
+            mv.setAttribute('shadow-intensity', '1');
+            mv.setAttribute('exposure', '1.1');
+
+            // ── Depth + environment estimation ────────────────────────────────
+            mv.setAttribute('xr-environment', '');                  // real-world depth understanding
+            mv.setAttribute('environment-image', 'neutral');        // realistic lighting blend
+            mv.setAttribute('ar-environment-estimation', '');       // match real-world lighting
+
+            // ── Eager load → model in memory before button tap ────────────────
+            mv.setAttribute('loading', 'eager');
+            mv.setAttribute('reveal', 'auto');
+
+            // ── Hidden off-screen ──────────────────────────────────────────────
+            mv.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;top:0;left:0;';
+            document.body.appendChild(mv);
+
+            preloaded[i] = mv;
+
+            mv.addEventListener('load', () => {
+                preloaded[i].ready = true;
+                console.log(`✅ Preloaded: ${l.name}`);
+            });
+
+            mv.addEventListener('error', () => {
+                console.warn(`⚠️ Failed to preload: ${l.name}`);
+            });
+        }
+
         landmarks.forEach((l, i) => {
-            const glbPath  = `ExploreJapan/${l.folder}/${l.file}.glb`;
-            const usdzPath = `ExploreJapan/${l.folder}/${l.file}.usdz`;
-            const imgPath  = `ExploreJapan/${l.folder}/${l.file}.png`;
+            const imgPath = `ExploreJapan/${l.folder}/${l.file}.png`;
 
             const card = document.createElement('div');
             card.className = 'landmark-card';
@@ -252,7 +297,6 @@
                 <div class="thumb-wrap">
                     <img src="${imgPath}" alt="${l.name}" loading="${i === 0 ? 'eager' : 'lazy'}">
                 </div>
-
                 <div class="landmark-info">
                     <div class="landmark-name">${l.name}</div>
                     <div class="landmark-city">${l.city}</div>
@@ -264,34 +308,14 @@
 
             grid.appendChild(card);
 
+            // ── Start preloading immediately in background ─────────────────────
+            preloadModel(l, i);
+
             const btn = card.querySelector(`#arbtn-${i}`);
             btn.addEventListener('click', () => {
-                let mv = document.getElementById(`mv-ar-${i}`);
-                if (!mv) {
-                    mv = document.createElement('model-viewer');
-                    mv.id = `mv-ar-${i}`;
-
-                    // ── Core src ──────────────────────────────────
-                    mv.setAttribute('src', glbPath);
-                    if (isIOS && l.hasUsdz) mv.setAttribute('ios-src', usdzPath);
-
-                    // ── AR + pinch zoom/scale enabled ─────────────
-                    mv.setAttribute('ar', '');
-                    mv.setAttribute('ar-modes', 'webxr scene-viewer quick-look');
-                    mv.setAttribute('ar-placement', 'floor');
-                    mv.setAttribute('ar-scale', 'auto');        // pinch to resize in AR
-                    mv.setAttribute('camera-controls', '');     // full gesture support
-                    mv.setAttribute('touch-action', 'none');    // model-viewer owns all touches
-                    mv.setAttribute('interaction-prompt', 'none');
-                    mv.setAttribute('shadow-intensity', '1');
-                    mv.setAttribute('exposure', '1.1');
-
-                    // ── Hidden off-screen ──────────────────────────
-                    mv.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;top:0;left:0;';
-                    document.body.appendChild(mv);
-
-                    mv.addEventListener('load', () => mv.activateAR());
-                } else {
+                const mv = preloaded[i];
+                if (mv) {
+                    // Model already in memory → instant AR launch
                     mv.activateAR();
                 }
             });
