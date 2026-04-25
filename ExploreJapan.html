@@ -250,23 +250,28 @@
             mv.setAttribute('src', `ExploreJapan/${l.folder}/${l.file}.glb`);
             if (isIOS && l.hasUsdz) mv.setAttribute('ios-src', `ExploreJapan/${l.folder}/${l.file}.usdz`);
 
-            // ── AR core ────────────────────────────────────────────────────────
+            // ── AR core — scene-viewer first for better floor anchoring ────────
             mv.setAttribute('ar', '');
-            mv.setAttribute('ar-modes', 'webxr scene-viewer quick-look');
-            mv.setAttribute('ar-placement', 'floor');
-            mv.setAttribute('ar-scale', 'auto');            // pinch to resize in AR
-            mv.setAttribute('camera-controls', '');         // full gesture support
-            mv.setAttribute('touch-action', 'none');        // model-viewer owns all touches
+            mv.setAttribute('ar-modes', 'scene-viewer webxr quick-look'); // scene-viewer = best floor anchor on Android
+            mv.setAttribute('ar-placement', 'floor');                      // lock to floor not wall/camera
+
+            // ── Scale: fixed at 1:1 real world, no camera drift ───────────────
+            mv.setAttribute('ar-scale', 'fixed');                          // prevents model following camera
+            mv.setAttribute('scale', '1 1 1');                             // spawn at 100% real world scale
+
+            // ── Camera & touch ─────────────────────────────────────────────────
+            mv.setAttribute('camera-controls', '');
+            mv.setAttribute('touch-action', 'none');
             mv.setAttribute('interaction-prompt', 'none');
+
+            // ── Lighting & shadows ─────────────────────────────────────────────
             mv.setAttribute('shadow-intensity', '1');
+            mv.setAttribute('shadow-softness', '1');
             mv.setAttribute('exposure', '1.1');
+            mv.setAttribute('environment-image', 'neutral');
+            mv.setAttribute('xr-environment', '');                         // real-world depth & lighting
 
-            // ── Depth + environment estimation ────────────────────────────────
-            mv.setAttribute('xr-environment', '');                  // real-world depth understanding
-            mv.setAttribute('environment-image', 'neutral');        // realistic lighting blend
-            mv.setAttribute('ar-environment-estimation', '');       // match real-world lighting
-
-            // ── Eager load → model in memory before button tap ────────────────
+            // ── Eager preload so model is ready before button tap ─────────────
             mv.setAttribute('loading', 'eager');
             mv.setAttribute('reveal', 'auto');
 
@@ -278,7 +283,16 @@
 
             mv.addEventListener('load', () => {
                 preloaded[i].ready = true;
+                mv.resetTurntableRotation(0);
+                mv.cameraOrbit = 'auto auto auto';
                 console.log(`✅ Preloaded: ${l.name}`);
+            });
+
+            // ── Lock to floor the moment AR tracking begins ────────────────────
+            mv.addEventListener('ar-tracking', (e) => {
+                if (e.detail.status === 'tracking') {
+                    mv.setAttribute('ar-placement', 'floor');
+                }
             });
 
             mv.addEventListener('error', () => {
@@ -315,7 +329,7 @@
             btn.addEventListener('click', () => {
                 const mv = preloaded[i];
                 if (mv) {
-                    // Model already in memory → instant AR launch
+                    // Already in memory → instant AR launch
                     mv.activateAR();
                 }
             });
