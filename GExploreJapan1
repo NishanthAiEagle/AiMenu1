@@ -241,30 +241,32 @@
     const grid   = document.getElementById('grid');
     const dotsEl = document.getElementById('dots');
 
+    // ── Same iOS detection as menu code ───────────────────────────────────
     const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
                   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-    // ── Preloaded model-viewer registry ──────────────────────────────────
-    // Each entry: { mv, ready: bool, error: bool }
-    const preloaded = {};
+    // ── loadModelAndAR — ported directly from menu code ───────────────────
+    // Shows spinner on button → creates model-viewer → calls activateAR() on load
+    function loadModelAndAR(l, thumbWrap, btn) {
+      // Spinner state — identical to menu code
+      btn.disabled = true;
+      btn.innerHTML = `
+        <span style="display:inline-block;width:14px;height:14px;
+          border:2px solid rgba(255,255,255,0.25);
+          border-top-color:#fff;border-radius:50%;
+          animation:spin 0.8s linear infinite;"></span>
+        Loading…`;
 
-    // ── Spinner HTML helper ───────────────────────────────────────────────
-    const SPINNER = `<span style="display:inline-block;width:14px;height:14px;
-      border:2px solid rgba(255,255,255,0.25);border-top-color:#fff;
-      border-radius:50%;animation:spin 0.8s linear infinite;flex-shrink:0;"></span>`;
-
-    // ── Create a hidden off-screen model-viewer and start loading NOW ─────
-    // Staggered by index so card 0 loads first, others follow 800 ms apart.
-    // This keeps bandwidth focused on the first card the user will see.
-    function preloadModel(l, i) {
       const glbPath  = `ExploreJapan/${l.folder}/${l.file}.glb`;
       const usdzPath = `ExploreJapan/${l.folder}/${l.file}.usdz`;
 
       const mv = document.createElement('model-viewer');
       mv.setAttribute('src', glbPath);
+
+      // iOS Quick Look — local .usdz, same as menu code
       if (isIOS && l.hasUsdz) mv.setAttribute('ios-src', usdzPath);
 
-      // Full AR attribute set — must be set before load so AR is primed
+      // AR attributes — mirrored from menu code
       mv.setAttribute('ar',                 '');
       mv.setAttribute('ar-modes',           'webxr scene-viewer quick-look');
       mv.setAttribute('ar-placement',       'floor');
@@ -274,78 +276,45 @@
       mv.setAttribute('environment-image',  'neutral');
       mv.setAttribute('exposure',           '1.1');
       mv.setAttribute('interaction-prompt', 'none');
+      mv.setAttribute('loading',            'eager');
+      mv.setAttribute('reveal',             'auto');
       mv.setAttribute('xr-environment',     '');
-      // Card 0 = eager; rest = lazy so they don't block card 0
-      mv.setAttribute('loading', i === 0 ? 'eager' : 'lazy');
-      mv.setAttribute('reveal',  'auto');
 
-      // Completely hidden — 1×1 pixel off-screen, no visual impact
-      mv.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;top:-9999px;left:-9999px;';
-      document.body.appendChild(mv);
+      // Hidden behind photo — same z-index trick as menu code
+      mv.style.cssText = `
+        position: absolute; inset: 0;
+        width: 100%; height: 100%;
+        background: transparent;
+        touch-action: none;
+        z-index: -1; opacity: 0; pointer-events: none;`;
 
-      preloaded[i] = { mv, ready: false, error: false };
+      // Insert before the ar-launch-wrap so it sits in thumb-wrap
+      const launchWrap = thumbWrap.querySelector('.ar-launch-wrap');
+      thumbWrap.insertBefore(mv, launchWrap);
 
+      // On load → activate AR immediately, same as menu code
       mv.addEventListener('load', () => {
-        preloaded[i].ready = true;
-        // Update button to show it's ready (green dot)
-        const btn = document.getElementById(`arbtn-${i}`);
-        if (btn && !btn.disabled) {
-          btn.innerHTML = `<span style="width:7px;height:7px;border-radius:50%;background:#4ade80;flex-shrink:0;"></span> View in Real World`;
-        }
-      });
+        mv.activateAR();
 
-      mv.addEventListener('error', () => {
-        preloaded[i].error = true;
-        const btn = document.getElementById(`arbtn-${i}`);
-        if (btn && !btn.disabled) btn.innerHTML = '⚠️ Model unavailable';
-      });
-    }
-
-    // ── Launch AR using the already-preloaded model-viewer ────────────────
-    function launchAR(i, thumbWrap, btn) {
-      const entry = preloaded[i];
-
-      if (entry.error) {
-        btn.innerHTML = '⚠️ Model unavailable';
-        return;
-      }
-
-      if (entry.ready) {
-        // ✅ Model already in memory — AR launches instantly
-        entry.mv.activateAR();
-
-        entry.mv.addEventListener('ar-status', (e) => {
+        mv.addEventListener('ar-status', (e) => {
+          // If AR fails or exits — restore button, remove temp model-viewer
           if (e.detail.status === 'failed' || e.detail.status === 'not-presenting') {
             btn.disabled = false;
-            btn.innerHTML = `<span style="width:7px;height:7px;border-radius:50%;background:#4ade80;flex-shrink:0;"></span> View in Real World`;
+            btn.innerHTML = '🪐 View in Real World';
+            mv.remove();
           }
         }, { once: true });
+      });
 
-      } else {
-        // Model still downloading — show spinner and wait for load event
-        btn.disabled = true;
-        btn.innerHTML = `${SPINNER} Loading…`;
-
-        entry.mv.addEventListener('load', () => {
-          entry.mv.activateAR();
-          btn.disabled = false;
-
-          entry.mv.addEventListener('ar-status', (e) => {
-            if (e.detail.status === 'failed' || e.detail.status === 'not-presenting') {
-              btn.disabled = false;
-              btn.innerHTML = `<span style="width:7px;height:7px;border-radius:50%;background:#4ade80;flex-shrink:0;"></span> View in Real World`;
-            }
-          }, { once: true });
-        }, { once: true });
-
-        entry.mv.addEventListener('error', () => {
-          btn.disabled = false;
-          btn.innerHTML = '⚠️ Failed — Tap to retry';
-        }, { once: true });
-      }
+      // Error handler — same as menu code
+      mv.addEventListener('error', () => {
+        btn.disabled = false;
+        btn.innerHTML = '⚠️ Failed — Tap to retry';
+        mv.remove();
+      });
     }
 
-    // ── Build cards + kick off preloads ──────────────────────────────────
+    // ── Build cards ───────────────────────────────────────────────────────
     landmarks.forEach((l, i) => {
       const imgPath = `ExploreJapan/${l.folder}/${l.file}.png`;
 
@@ -353,8 +322,11 @@
       card.className = 'landmark-card';
       card.dataset.index = i;
 
+      // thumb-wrap holds: photo layer + AR launch button (same structure as menu modal)
       const thumbWrap = document.createElement('div');
       thumbWrap.className = 'thumb-wrap';
+
+      // ── STEP 1: Photo shown immediately (same as menu's photoWrap) ──────
       thumbWrap.innerHTML = `
         <div class="thumb-photo">
           <img src="${imgPath}" alt="${l.name}"
@@ -363,7 +335,7 @@
         </div>
         <div class="ar-launch-wrap">
           <button class="ar-launch-btn" id="arbtn-${i}">
-            ${SPINNER} Preparing…
+            🪐 View in Real World
           </button>
         </div>`;
 
@@ -377,21 +349,20 @@
       card.appendChild(info);
       grid.appendChild(card);
 
-      // Stagger preloads: card 0 immediately, each next card 800 ms later
-      // so network bandwidth prioritises the first visible card
-      setTimeout(() => preloadModel(l, i), i * 800);
-
-      const btn = document.getElementById(`arbtn-${i}`);
+      // ── STEP 2: Button tap → load model + AR (same flow as menu code) ───
+      const btn = thumbWrap.querySelector(`#arbtn-${i}`);
       btn.addEventListener('click', () => {
-        if (!btn.disabled) launchAR(i, thumbWrap, btn);
+        loadModelAndAR(l, thumbWrap, btn);
       });
 
+      // Dot indicator
       const dot = document.createElement('div');
       dot.className = 'dot' + (i === 0 ? ' active' : '');
+      dot.dataset.index = i;
       dotsEl.appendChild(dot);
     });
 
-    // ── Scroll dots ───────────────────────────────────────────────────────
+    // ── Scroll → update active dot ────────────────────────────────────────
     const dots = dotsEl.querySelectorAll('.dot');
     grid.addEventListener('scroll', () => {
       const center = grid.scrollLeft + grid.clientWidth / 2;
@@ -404,11 +375,15 @@
       dots.forEach((d, i) => d.classList.toggle('active', i === closest));
     }, { passive: true });
 
-    // ── Pause/resume on tab visibility ────────────────────────────────────
+    // ── Pause model-viewer when tab is hidden ─────────────────────────────
+    // Same as menu's visibilitychange handler
     document.addEventListener('visibilitychange', () => {
-      Object.values(preloaded).forEach(({ mv }) => {
-        if (document.hidden) { if (typeof mv.pause === 'function') mv.pause(); }
-        else                  { if (typeof mv.play  === 'function') mv.play();  }
+      document.querySelectorAll('.thumb-wrap model-viewer').forEach(mv => {
+        if (document.hidden) {
+          if (typeof mv.pause === 'function') mv.pause();
+        } else {
+          if (typeof mv.play  === 'function') mv.play();
+        }
       });
     });
   </script>
