@@ -93,7 +93,7 @@
             transform: translateZ(0);
         }
 
-        /* ─── Thumbnail image area ────────────────── */
+        /* ─── model-viewer wrapper ────────────────── */
         .model-wrap {
             flex: 1;
             position: relative;
@@ -101,34 +101,70 @@
             background: radial-gradient(ellipse at 50% 60%, #1a150a 0%, #080604 100%);
         }
 
-        /* PNG poster fills the card thumbnail — no 3D rotation */
-        .model-poster {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            display: block;
-        }
-
-        /* model-viewer is hidden until AR is triggered */
         model-viewer {
-            position: absolute;
-            inset: 0;
             width: 100%;
             height: 100%;
             background-color: transparent;
-            opacity: 0;
-            pointer-events: none;
             will-change: transform;
-        }
-
-        model-viewer.ar-active {
-            opacity: 1;
-            pointer-events: auto;
         }
 
         model-viewer::part(default-progress-bar) {
             display: none;
         }
+
+        /* ─── Custom Loading Overlay ──────────────── */
+        .loading-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            background: radial-gradient(ellipse at 50% 60%, #1a150a 0%, #080604 100%);
+            z-index: 10;
+            transition: opacity 0.4s ease;
+            pointer-events: none;
+        }
+
+        .loading-overlay.hidden {
+            opacity: 0;
+        }
+
+        .loader-ring {
+            width: 44px;
+            height: 44px;
+            border: 2px solid rgba(184,151,58,0.15);
+            border-top-color: var(--yama2);
+            border-radius: 50%;
+            animation: spin 0.9s linear infinite;
+        }
+
+        .loader-label {
+            font-size: 9px;
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+            color: var(--yama);
+            opacity: 0.7;
+        }
+
+        .loader-bar-track {
+            width: 80px;
+            height: 2px;
+            background: rgba(184,151,58,0.1);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .loader-bar-fill {
+            height: 100%;
+            background: var(--yama2);
+            width: 0%;
+            border-radius: 2px;
+            transition: width 0.2s ease;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
 
         /* ─── AR-Ready Badge ──────────────────────── */
         .ar-badge {
@@ -156,44 +192,6 @@
             opacity: 1;
             transform: translateY(0);
         }
-
-        /* ─── Spinner shown while GLB loads on AR tap ── */
-        .ar-loading {
-            position: absolute;
-            inset: 0;
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            background: rgba(8,6,4,0.75);
-            z-index: 15;
-            backdrop-filter: blur(4px);
-            -webkit-backdrop-filter: blur(4px);
-        }
-
-        .ar-loading.show {
-            display: flex;
-        }
-
-        .loader-ring {
-            width: 36px;
-            height: 36px;
-            border: 2px solid rgba(184,151,58,0.15);
-            border-top-color: var(--yama2);
-            border-radius: 50%;
-            animation: spin 0.9s linear infinite;
-        }
-
-        .loader-label {
-            font-size: 9px;
-            letter-spacing: 0.25em;
-            text-transform: uppercase;
-            color: var(--yama);
-            opacity: 0.8;
-        }
-
-        @keyframes spin { to { transform: rotate(360deg); } }
 
         /* ─── Info Panel ──────────────────────────── */
         .landmark-info {
@@ -252,6 +250,12 @@
 
         .ar-btn:active::after { background: rgba(255,255,255,0.15); }
         .ar-btn:active { transform: scale(0.97); }
+
+        .ar-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
 
         /* ─── Back Button ─────────────────────────── */
         .back-btn {
@@ -329,7 +333,7 @@
         landmarks.forEach((l, i) => {
             const glbPath  = `ExploreJapan/${l.folder}/${l.file}.glb`;
             const usdzPath = `ExploreJapan/${l.folder}/${l.file}.usdz`;
-            const pngPath  = `ExploreJapan/${l.folder}/${l.file}.png`;
+            const loading  = i === 0 ? 'eager' : 'lazy';
 
             const card = document.createElement('div');
             card.className = 'landmark-card';
@@ -337,16 +341,6 @@
 
             card.innerHTML = `
                 <div class="model-wrap">
-
-                    <!-- Static PNG thumbnail: no 3D rotation, loads instantly -->
-                    <img
-                        class="model-poster"
-                        src="${pngPath}"
-                        alt="${l.name}"
-                        loading="${i === 0 ? 'eager' : 'lazy'}"
-                    >
-
-                    <!-- model-viewer stays hidden until AR button is tapped -->
                     <model-viewer
                         id="mv-${i}"
                         src="${glbPath}"
@@ -358,14 +352,17 @@
                         touch-action="pan-y"
                         shadow-intensity="1"
                         exposure="1.1"
-                        loading="lazy"
+                        loading="${loading}"
                         reveal="auto"
+                        style="width:100%;height:100%;"
                     ></model-viewer>
 
-                    <!-- Spinner shown while GLB loads after AR tap -->
-                    <div class="ar-loading" id="arload-${i}">
+                    <div class="loading-overlay" id="overlay-${i}">
                         <div class="loader-ring"></div>
-                        <div class="loader-label">Preparing AR…</div>
+                        <div class="loader-bar-track">
+                            <div class="loader-bar-fill" id="bar-${i}"></div>
+                        </div>
+                        <div class="loader-label">Loading model</div>
                     </div>
 
                     <div class="ar-badge" id="badge-${i}">✦ AR Ready</div>
@@ -374,7 +371,7 @@
                 <div class="landmark-info">
                     <div class="landmark-name">${l.name}</div>
                     <div class="landmark-city">${l.city}</div>
-                    <button class="ar-btn" id="arbtn-${i}">
+                    <button class="ar-btn" id="arbtn-${i}" disabled>
                         <span>🪐</span> View in Real World
                     </button>
                 </div>
@@ -383,45 +380,31 @@
             grid.appendChild(card);
 
             requestAnimationFrame(() => {
-                const mv     = document.getElementById(`mv-${i}`);
-                const arload = document.getElementById(`arload-${i}`);
-                const badge  = document.getElementById(`badge-${i}`);
-                const btn    = document.getElementById(`arbtn-${i}`);
+                const mv      = document.getElementById(`mv-${i}`);
+                const overlay = document.getElementById(`overlay-${i}`);
+                const bar     = document.getElementById(`bar-${i}`);
+                const badge   = document.getElementById(`badge-${i}`);
+                const btn     = document.getElementById(`arbtn-${i}`);
 
-                let modelReady = false;
-
-                // Model loaded in background → mark ready, show badge
-                mv.addEventListener('load', () => {
-                    modelReady = true;
-                    arload.classList.remove('show');
-                    badge.classList.add('visible');
+                mv.addEventListener('progress', (e) => {
+                    const pct = Math.round(e.detail.totalProgress * 100);
+                    if (bar) bar.style.width = pct + '%';
                 });
 
-                mv.addEventListener('error', () => {
-                    arload.classList.remove('show');
-                    const lbl = arload.querySelector('.loader-label');
-                    if (lbl) lbl.textContent = 'Model unavailable';
+                mv.addEventListener('load', () => {
+                    overlay?.classList.add('hidden');
+                    badge?.classList.add('visible');
+                    if (btn) btn.disabled = false;
+                    setTimeout(() => overlay?.remove(), 500);
                 });
 
                 btn.addEventListener('click', () => {
-                    if (modelReady) {
-                        // Already loaded — launch AR instantly
-                        mv.activateAR();
-                    } else {
-                        // Trigger load now and show spinner
-                        mv.classList.add('ar-active');
-                        arload.classList.add('show');
-                        mv.setAttribute('loading', 'eager');
+                    mv.activateAR();
+                });
 
-                        mv.addEventListener('load', () => {
-                            arload.classList.remove('show');
-                            mv.activateAR();
-                        }, { once: true });
-
-                        mv.addEventListener('error', () => {
-                            arload.classList.remove('show');
-                        }, { once: true });
-                    }
+                mv.addEventListener('error', () => {
+                    if (overlay) overlay.querySelector('.loader-label').textContent = 'Model unavailable';
+                    if (overlay) overlay.querySelector('.loader-ring').style.display = 'none';
                 });
             });
 
