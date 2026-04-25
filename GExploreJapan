@@ -19,6 +19,7 @@
             --paper: #F0E8D5;
             --yama: #B8973A;
             --yama2: #D4AE52;
+            --beni: #7A2E1E;
             --ff-en: 'Cormorant Garamond', serif;
             --ff-ui: 'DM Sans', sans-serif;
         }
@@ -43,6 +44,7 @@
             border-bottom: 1px solid rgba(184,151,58,0.2);
             flex-shrink: 0;
         }
+
         .nav-header h1 {
             font-family: var(--ff-en);
             font-size: clamp(24px, 6vw, 36px);
@@ -50,6 +52,7 @@
             color: var(--yama2);
             letter-spacing: 0.1em;
         }
+
         .nav-header p {
             font-size: 9px;
             text-transform: uppercase;
@@ -90,7 +93,7 @@
             transform: translateZ(0);
         }
 
-        /* ─── Model wrap ──────────────────────────── */
+        /* ─── model-viewer wrapper ────────────────── */
         .model-wrap {
             flex: 1;
             position: relative;
@@ -98,94 +101,72 @@
             background: radial-gradient(ellipse at 50% 60%, #1a150a 0%, #080604 100%);
         }
 
-        /* ─── PNG poster ─────────────────────────── */
-        .model-poster {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            display: block;
-            position: absolute;
-            inset: 0;
-            z-index: 1;
-            transition: opacity 0.4s ease;
-        }
-        .model-poster.hidden {
-            opacity: 0;
-            pointer-events: none;
-        }
-
-        /*
-         * ✅ PINCH ZOOM SETUP:
-         *
-         * --min-camera-orbit: auto auto 100%
-         *   → Launch/default view = 100% (full model fits perfectly in frame)
-         *   → User CANNOT zoom out beyond this (model always fills card nicely)
-         *
-         * --max-camera-orbit: auto auto 100%
-         *   → Locks the INITIAL orbit to 100% distance on load
-         *   (overridden per-card via JS after load to restore zoom-out freedom)
-         *
-         * camera-orbit: "0deg 75deg 100%"
-         *   → Sets the STARTING camera position at exactly 100% distance
-         *   → 0deg horizontal, 75deg vertical (slightly above, good for landmarks)
-         *
-         * To allow zoom IN to 500% we set --min at 20%
-         * (100% ÷ 5 = 20% means user can zoom 5× closer = effectively 500% scale)
-         */
         model-viewer {
-            position: absolute;
-            inset: 0;
             width: 100%;
             height: 100%;
             background-color: transparent;
-            opacity: 0;
-            transition: opacity 0.5s ease;
-            z-index: 2;
-            touch-action: none;
-
-            /* Start at 100% distance */
-            --camera-orbit: 0deg 75deg 100%;
-
-            /* Zoom IN limit: 20% of bounding sphere = 5× closer = "500% zoom" */
-            --min-camera-orbit: auto auto 20%;
-
-            /* Zoom OUT limit: 100% = user cannot zoom out beyond the default view */
-            --max-camera-orbit: auto auto 100%;
+            will-change: transform;
         }
 
-        model-viewer.loaded {
-            opacity: 1;
+        model-viewer::part(default-progress-bar) {
+            display: none;
         }
 
-        model-viewer::part(default-progress-bar) { display: none; }
-        model-viewer::part(default-ar-button)     { display: none; }
-
-        /* ─── Pinch hint ──────────────────────────── */
-        .gesture-hint {
+        /* ─── Custom Loading Overlay ──────────────── */
+        .loading-overlay {
             position: absolute;
-            bottom: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(8,6,4,0.72);
-            border: 1px solid rgba(184,151,58,0.35);
-            border-radius: 20px;
-            padding: 5px 14px;
-            font-size: 9px;
-            letter-spacing: 0.18em;
-            color: var(--yama2);
-            text-transform: uppercase;
-            white-space: nowrap;
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-            z-index: 6;
-            opacity: 0;
-            transition: opacity 0.5s ease;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            background: radial-gradient(ellipse at 50% 60%, #1a150a 0%, #080604 100%);
+            z-index: 10;
+            transition: opacity 0.4s ease;
             pointer-events: none;
         }
-        .gesture-hint.visible { opacity: 1; }
-        .gesture-hint.fade    { opacity: 0; }
 
-        /* ─── AR badge ────────────────────────────── */
+        .loading-overlay.hidden {
+            opacity: 0;
+        }
+
+        .loader-ring {
+            width: 44px;
+            height: 44px;
+            border: 2px solid rgba(184,151,58,0.15);
+            border-top-color: var(--yama2);
+            border-radius: 50%;
+            animation: spin 0.9s linear infinite;
+        }
+
+        .loader-label {
+            font-size: 9px;
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+            color: var(--yama);
+            opacity: 0.7;
+        }
+
+        .loader-bar-track {
+            width: 80px;
+            height: 2px;
+            background: rgba(184,151,58,0.1);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .loader-bar-fill {
+            height: 100%;
+            background: var(--yama2);
+            width: 0%;
+            border-radius: 2px;
+            transition: width 0.2s ease;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ─── AR-Ready Badge ──────────────────────── */
         .ar-badge {
             position: absolute;
             top: 10px;
@@ -206,57 +187,11 @@
             pointer-events: none;
             z-index: 5;
         }
+
         .ar-badge.visible {
             opacity: 1;
             transform: translateY(0);
         }
-
-        /* ─── Loading overlay ─────────────────────── */
-        .ar-loading {
-            position: absolute;
-            inset: 0;
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            background: rgba(8,6,4,0.82);
-            z-index: 20;
-            backdrop-filter: blur(6px);
-            -webkit-backdrop-filter: blur(6px);
-        }
-        .ar-loading.show { display: flex; }
-
-        .loader-ring {
-            width: 38px;
-            height: 38px;
-            border: 2px solid rgba(184,151,58,0.15);
-            border-top-color: var(--yama2);
-            border-radius: 50%;
-            animation: spin 0.85s linear infinite;
-        }
-        .loader-label {
-            font-size: 9px;
-            letter-spacing: 0.25em;
-            text-transform: uppercase;
-            color: var(--yama);
-            opacity: 0.85;
-        }
-        .loader-bar-track {
-            width: 110px;
-            height: 2px;
-            background: rgba(184,151,58,0.12);
-            border-radius: 2px;
-            overflow: hidden;
-        }
-        .loader-bar-fill {
-            height: 100%;
-            background: var(--yama2);
-            width: 0%;
-            border-radius: 2px;
-            transition: width 0.15s ease;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
 
         /* ─── Info Panel ──────────────────────────── */
         .landmark-info {
@@ -265,6 +200,7 @@
             border-top: 1px solid rgba(184,151,58,0.12);
             flex-shrink: 0;
         }
+
         .landmark-name {
             font-family: var(--ff-en);
             font-size: clamp(20px, 5vw, 26px);
@@ -272,6 +208,7 @@
             margin-bottom: 2px;
             line-height: 1.1;
         }
+
         .landmark-city {
             font-size: 9px;
             color: var(--yama);
@@ -280,11 +217,9 @@
             margin-bottom: 12px;
         }
 
-        /* ─── Button row ──────────────────────────── */
-        .btn-row { display: flex; gap: 8px; }
-
+        /* ─── AR Button ───────────────────────────── */
         .ar-btn {
-            flex: 1;
+            width: 100%;
             background: linear-gradient(135deg, var(--yama) 0%, var(--yama2) 100%);
             border: none;
             padding: 13px;
@@ -298,14 +233,13 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 6px;
+            gap: 8px;
             transition: opacity 0.2s, transform 0.15s;
             min-height: 44px;
             position: relative;
             overflow: hidden;
-            -webkit-tap-highlight-color: transparent;
-            font-family: var(--ff-ui);
         }
+
         .ar-btn::after {
             content: '';
             position: absolute;
@@ -313,8 +247,10 @@
             background: rgba(255,255,255,0);
             transition: background 0.15s;
         }
+
         .ar-btn:active::after { background: rgba(255,255,255,0.15); }
-        .ar-btn:active        { transform: scale(0.97); }
+        .ar-btn:active { transform: scale(0.97); }
+
         .ar-btn:disabled {
             opacity: 0.4;
             cursor: not-allowed;
@@ -342,7 +278,7 @@
             align-items: center;
         }
 
-        /* ─── Scroll dots ─────────────────────────── */
+        /* ─── Scroll hint dots ────────────────────── */
         .scroll-dots {
             flex-shrink: 0;
             display: flex;
@@ -350,12 +286,15 @@
             gap: 6px;
             padding: 10px 0 max(env(safe-area-inset-bottom), 14px);
         }
+
         .dot {
-            width: 5px; height: 5px;
+            width: 5px;
+            height: 5px;
             border-radius: 50%;
             background: rgba(184,151,58,0.25);
             transition: background 0.3s, transform 0.3s;
         }
+
         .dot.active {
             background: var(--yama2);
             transform: scale(1.3);
@@ -372,6 +311,7 @@
     </div>
 
     <div class="explorer-grid" id="grid"></div>
+
     <div class="scroll-dots" id="dots"></div>
 
     <script>
@@ -391,168 +331,97 @@
                       (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
         landmarks.forEach((l, i) => {
-            const base     = `ExploreJapan/${l.folder}/${l.file}`;
-            const glbPath  = `${base}.glb`;
-            const usdzPath = `${base}.usdz`;
-            const pngPath  = `${base}.png`;
+            const glbPath  = `ExploreJapan/${l.folder}/${l.file}.glb`;
+            const usdzPath = `ExploreJapan/${l.folder}/${l.file}.usdz`;
+            const loading  = i === 0 ? 'eager' : 'lazy';
 
             const card = document.createElement('div');
             card.className = 'landmark-card';
             card.dataset.index = i;
 
             card.innerHTML = `
-                <div class="model-wrap" id="wrap-${i}">
-
-                    <img
-                        class="model-poster"
-                        id="poster-${i}"
-                        src="${pngPath}"
-                        alt="${l.name}"
-                        loading="${i === 0 ? 'eager' : 'lazy'}"
-                    >
-
+                <div class="model-wrap">
                     <model-viewer
                         id="mv-${i}"
                         src="${glbPath}"
                         ${isIOS && l.hasUsdz ? `ios-src="${usdzPath}"` : ''}
                         ar
-                        ar-modes="${isIOS ? 'quick-look webxr' : 'scene-viewer webxr'}"
+                        ar-modes="webxr scene-viewer quick-look"
                         ar-placement="floor"
-                        ar-scale="fixed"
-                        loading="${i === 0 ? 'eager' : 'lazy'}"
-                        reveal="auto"
                         camera-controls
-                        touch-action="none"
-                        interaction-prompt="none"
-                        environment-image="neutral"
-                        shadow-intensity="1.2"
-                        shadow-softness="0.8"
+                        touch-action="pan-y"
+                        shadow-intensity="1"
                         exposure="1.1"
+                        loading="${loading}"
+                        reveal="auto"
+                        style="width:100%;height:100%;"
                     ></model-viewer>
 
-                    <div class="ar-loading" id="arload-${i}">
+                    <div class="loading-overlay" id="overlay-${i}">
                         <div class="loader-ring"></div>
                         <div class="loader-bar-track">
                             <div class="loader-bar-fill" id="bar-${i}"></div>
                         </div>
-                        <div class="loader-label" id="lbl-${i}">Loading model…</div>
+                        <div class="loader-label">Loading model</div>
                     </div>
 
-                    <div class="gesture-hint" id="hint-${i}">🔍 Pinch to zoom · Drag to rotate</div>
                     <div class="ar-badge" id="badge-${i}">✦ AR Ready</div>
                 </div>
 
                 <div class="landmark-info">
                     <div class="landmark-name">${l.name}</div>
                     <div class="landmark-city">${l.city}</div>
-                    <div class="btn-row">
-                        <button class="ar-btn" id="arbtn-${i}" onclick="launchAR(${i})">
-                            <span>🪐</span> View in AR
-                        </button>
-                    </div>
+                    <button class="ar-btn" id="arbtn-${i}" disabled>
+                        <span>🪐</span> View in Real World
+                    </button>
                 </div>
             `;
 
             grid.appendChild(card);
 
-            const dot = document.createElement('div');
-            dot.className = 'dot' + (i === 0 ? ' active' : '');
-            dotsEl.appendChild(dot);
-        });
+            requestAnimationFrame(() => {
+                const mv      = document.getElementById(`mv-${i}`);
+                const overlay = document.getElementById(`overlay-${i}`);
+                const bar     = document.getElementById(`bar-${i}`);
+                const badge   = document.getElementById(`badge-${i}`);
+                const btn     = document.getElementById(`arbtn-${i}`);
 
-        // ─── Per-card state ────────────────────────────────────────────────────
-        const state = {};
-
-        requestAnimationFrame(() => {
-            landmarks.forEach((_, i) => {
-                const mv     = document.getElementById(`mv-${i}`);
-                const poster = document.getElementById(`poster-${i}`);
-                const arload = document.getElementById(`arload-${i}`);
-                const bar    = document.getElementById(`bar-${i}`);
-                const lbl    = document.getElementById(`lbl-${i}`);
-                const badge  = document.getElementById(`badge-${i}`);
-                const btn    = document.getElementById(`arbtn-${i}`);
-                const hint   = document.getElementById(`hint-${i}`);
-
-                state[i] = { mv, poster, arload, bar, lbl, badge, btn, hint,
-                             ready: false, loading: false, pendingAR: false };
-
-                // Progress bar
                 mv.addEventListener('progress', (e) => {
                     const pct = Math.round(e.detail.totalProgress * 100);
                     if (bar) bar.style.width = pct + '%';
-                    if (lbl) lbl.textContent = `Loading… ${pct}%`;
                 });
 
                 mv.addEventListener('load', () => {
-                    state[i].ready   = true;
-                    state[i].loading = false;
+                    overlay?.classList.add('hidden');
+                    badge?.classList.add('visible');
+                    if (btn) btn.disabled = false;
+                    setTimeout(() => overlay?.remove(), 500);
+                });
 
-                    arload.classList.remove('show');
-
-                    /*
-                     * ✅ SET CAMERA TO EXACTLY 100% ON LAUNCH
-                     * After load, force camera to 100% distance so the full
-                     * model is perfectly framed when user first sees it.
-                     * Then set limits:
-                     *   min = 20%  → pinch IN up to 5× closer  = "500% zoom"
-                     *   max = 100% → pinch OUT stops at default = "100% zoom"
-                     */
-                    mv.cameraOrbit  = '0deg 75deg 100%';
-                    mv.style.setProperty('--min-camera-orbit', 'auto auto 20%');
-                    mv.style.setProperty('--max-camera-orbit', 'auto auto 100%');
-
-                    // Fade in 3D, fade out poster
-                    mv.classList.add('loaded');
-                    if (poster) poster.classList.add('hidden');
-
-                    badge.classList.add('visible');
-
-                    // Show hint for 3.5s then fade
-                    hint.classList.add('visible');
-                    setTimeout(() => hint.classList.add('fade'), 3000);
-                    setTimeout(() => { hint.classList.remove('visible'); hint.classList.remove('fade'); }, 3600);
-
-                    if (state[i].pendingAR) {
-                        state[i].pendingAR = false;
-                        mv.activateAR();
-                    }
+                btn.addEventListener('click', () => {
+                    mv.activateAR();
                 });
 
                 mv.addEventListener('error', () => {
-                    state[i].loading = false;
-                    arload.classList.remove('show');
-                    if (lbl) lbl.textContent = 'Model unavailable';
-                    if (btn) { btn.disabled = true; btn.innerHTML = 'Unavailable'; }
+                    if (overlay) overlay.querySelector('.loader-label').textContent = 'Model unavailable';
+                    if (overlay) overlay.querySelector('.loader-ring').style.display = 'none';
                 });
             });
+
+            const dot = document.createElement('div');
+            dot.className = 'dot' + (i === 0 ? ' active' : '');
+            dot.dataset.index = i;
+            dotsEl.appendChild(dot);
         });
 
-        // ─── AR Launcher ──────────────────────────────────────────────────────
-        function launchAR(i) {
-            const s = state[i];
-            if (!s) return;
-
-            if (s.ready) {
-                s.mv.activateAR();
-            } else if (!s.loading) {
-                s.loading   = true;
-                s.pendingAR = true;
-                s.mv.setAttribute('loading', 'eager');
-                s.arload.classList.add('show');
-            } else {
-                s.pendingAR = true;
-            }
-        }
-
-        // ─── Scroll dot sync ──────────────────────────────────────────────────
         const dots = dotsEl.querySelectorAll('.dot');
 
         grid.addEventListener('scroll', () => {
             const center = grid.scrollLeft + grid.clientWidth / 2;
             let closest = 0, minDist = Infinity;
             grid.querySelectorAll('.landmark-card').forEach((card, i) => {
-                const dist = Math.abs((card.offsetLeft + card.offsetWidth / 2) - center);
+                const cardCenter = card.offsetLeft + card.offsetWidth / 2;
+                const dist = Math.abs(center - cardCenter);
                 if (dist < minDist) { minDist = dist; closest = i; }
             });
             dots.forEach((d, i) => d.classList.toggle('active', i === closest));
